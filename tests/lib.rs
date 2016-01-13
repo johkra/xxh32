@@ -38,7 +38,9 @@ fn multi_updates() {
 
 #[test]
 fn mpl_hash() {
-    let mpl = b"This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.\n";
+    let mpl = b"This Source Code Form is subject to the terms of the Mozilla \
+Public License, v. 2.0. If a copy of the MPL was not distributed \
+with this file, You can obtain one at https://mozilla.org/MPL/2.0/.\n";
     let mut xxh32 = XXH32::new();
     xxh32.write(mpl);
     assert_eq!(xxh32.finish(), 0xe52c5e91);

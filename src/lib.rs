@@ -50,8 +50,8 @@ impl XXH32 {
         let mut bytesview = &bytes[..];
 
         if self.memsize > 0 {
-            for i in 0..16-self.memsize {
-                self.memory[self.memsize+i] = bytesview[i];
+            for i in 0..16 - self.memsize {
+                self.memory[self.memsize + i] = bytesview[i];
             }
 
             let mut memview = &self.memory[..];
@@ -71,24 +71,28 @@ impl XXH32 {
             self.v4 = self.v4.wrapping_add(LittleEndian::read_u32(memview).wrapping_mul(PRIME32_2));
             self.v4 = self.v4.rotate_left(13).wrapping_mul(PRIME32_1);
 
-            bytesview = &bytesview[16-self.memsize..];
+            bytesview = &bytesview[16 - self.memsize..];
             self.memsize = 0;
         }
 
         while bytesview.len() >= 16 {
-            self.v1 = self.v1.wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
+            self.v1 = self.v1
+                          .wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
             self.v1 = self.v1.rotate_left(13).wrapping_mul(PRIME32_1);
             bytesview = &bytesview[4..];
 
-            self.v2 = self.v2.wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
+            self.v2 = self.v2
+                          .wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
             self.v2 = self.v2.rotate_left(13).wrapping_mul(PRIME32_1);
             bytesview = &bytesview[4..];
 
-            self.v3 = self.v3.wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
+            self.v3 = self.v3
+                          .wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
             self.v3 = self.v3.rotate_left(13).wrapping_mul(PRIME32_1);
             bytesview = &bytesview[4..];
 
-            self.v4 = self.v4.wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
+            self.v4 = self.v4
+                          .wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
             self.v4 = self.v4.rotate_left(13).wrapping_mul(PRIME32_1);
             bytesview = &bytesview[4..];
         }

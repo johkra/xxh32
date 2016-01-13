@@ -7,4 +7,4 @@ description = "Rust implementation of the xxh32 hash used in the LZ4 compression
 repository = "https://github.com/johkra/xxh32"
 
 [dependencies]
-byteorder = "0.3.13"
+byteorder = "0.4.2"
