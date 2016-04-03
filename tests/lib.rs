@@ -5,7 +5,7 @@ use xxh32::XXH32;
 #[test]
 fn empty_hash() {
     let mut xxh32 = XXH32::new();
-    xxh32.write(&[][..]);
+    xxh32.write(b"");
     assert_eq!(xxh32.finish(), 0x02cc5d05)
 }
 
@@ -26,6 +26,14 @@ fn to_16_hashes() {
                         xxh32.finish(),
                         hashes[i]));
     }
+}
+
+#[test]
+fn small_updates() {
+    let mut xxh32 = XXH32::new();
+    xxh32.write(b"0");
+    xxh32.write(b"1");
+    assert_eq!(xxh32.finish(), 0x034d0471);
 }
 
 #[test]

@@ -1,8 +1,3 @@
-extern crate byteorder;
-
-use byteorder::ByteOrder;
-use byteorder::LittleEndian;
-
 const PRIME32_1: u32 = 2654435761;
 const PRIME32_2: u32 = 2246822519;
 const PRIME32_3: u32 = 3266489917;
@@ -18,6 +13,22 @@ pub struct XXH32 {
     v4: u32,
     memory: [u8; 16],
     memsize: usize,
+}
+
+fn read_u32_le(bytes: &[u8]) -> u32 {
+    assert_eq!(bytes.len(), 4);
+    let b4 = [bytes[0], bytes[1], bytes[2], bytes[3]];
+
+    return unsafe { std::mem::transmute::<[u8; 4], u32>(b4) }.to_le();
+}
+
+fn calc_next_chunk(val: u32, bytes: &[u8]) -> u32 {
+    let b_u32 = read_u32_le(bytes);
+
+    return b_u32.wrapping_mul(PRIME32_2)
+                .wrapping_add(val)
+                .rotate_left(13)
+                .wrapping_mul(PRIME32_1);
 }
 
 impl XXH32 {
@@ -36,73 +47,45 @@ impl XXH32 {
             memsize: 0,
         }
     }
+
     pub fn write(&mut self, bytes: &[u8]) {
         self.total_len += bytes.len();
 
         if self.memsize + bytes.len() < 16 {
-            for i in 0..bytes.len() {
-                self.memory[self.memsize + i] = bytes[i];
-            }
+            self.memory[self.memsize..self.memsize + bytes.len()].clone_from_slice(bytes);
             self.memsize += bytes.len();
             return;
         }
 
-        let mut bytesview = &bytes[..];
+        let bytesview = &bytes[(16 - self.memsize) % 16..];
 
         if self.memsize > 0 {
-            for i in 0..16 - self.memsize {
-                self.memory[self.memsize + i] = bytesview[i];
-            }
+            self.memory[self.memsize..].clone_from_slice(&bytes[..16 - self.memsize]);
 
-            let mut memview = &self.memory[..];
+            self.v1 = calc_next_chunk(self.v1, &self.memory[0..4]);
+            self.v2 = calc_next_chunk(self.v2, &self.memory[4..8]);
+            self.v3 = calc_next_chunk(self.v3, &self.memory[8..12]);
+            self.v4 = calc_next_chunk(self.v4, &self.memory[12..16]);
 
-            self.v1 = self.v1.wrapping_add(LittleEndian::read_u32(memview).wrapping_mul(PRIME32_2));
-            self.v1 = self.v1.rotate_left(13).wrapping_mul(PRIME32_1);
-            memview = &memview[4..];
-
-            self.v2 = self.v2.wrapping_add(LittleEndian::read_u32(memview).wrapping_mul(PRIME32_2));
-            self.v2 = self.v2.rotate_left(13).wrapping_mul(PRIME32_1);
-            memview = &memview[4..];
-
-            self.v3 = self.v3.wrapping_add(LittleEndian::read_u32(memview).wrapping_mul(PRIME32_2));
-            self.v3 = self.v3.rotate_left(13).wrapping_mul(PRIME32_1);
-            memview = &memview[4..];
-
-            self.v4 = self.v4.wrapping_add(LittleEndian::read_u32(memview).wrapping_mul(PRIME32_2));
-            self.v4 = self.v4.rotate_left(13).wrapping_mul(PRIME32_1);
-
-            bytesview = &bytesview[16 - self.memsize..];
             self.memsize = 0;
         }
 
-        while bytesview.len() >= 16 {
-            self.v1 = self.v1
-                          .wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
-            self.v1 = self.v1.rotate_left(13).wrapping_mul(PRIME32_1);
-            bytesview = &bytesview[4..];
-
-            self.v2 = self.v2
-                          .wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
-            self.v2 = self.v2.rotate_left(13).wrapping_mul(PRIME32_1);
-            bytesview = &bytesview[4..];
-
-            self.v3 = self.v3
-                          .wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
-            self.v3 = self.v3.rotate_left(13).wrapping_mul(PRIME32_1);
-            bytesview = &bytesview[4..];
-
-            self.v4 = self.v4
-                          .wrapping_add(LittleEndian::read_u32(bytesview).wrapping_mul(PRIME32_2));
-            self.v4 = self.v4.rotate_left(13).wrapping_mul(PRIME32_1);
-            bytesview = &bytesview[4..];
+        for chunk in bytesview.chunks(16) {
+            match chunk.len() {
+                16 => {
+                    self.v1 = calc_next_chunk(self.v1, &chunk[0..4]);
+                    self.v2 = calc_next_chunk(self.v2, &chunk[4..8]);
+                    self.v3 = calc_next_chunk(self.v3, &chunk[8..12]);
+                    self.v4 = calc_next_chunk(self.v4, &chunk[12..16]);
+                }
+                _ => {
+                    self.memory[..chunk.len()].clone_from_slice(chunk);
+                    self.memsize += chunk.len();
+                }
+            }
         }
-
-        for byte in bytesview {
-            self.memory[self.memsize] = *byte;
-            self.memsize += 1;
-        }
-
     }
+
     pub fn finish(&self) -> u32 {
         let mut h32 = self.seed.wrapping_add(PRIME32_5);
 
@@ -116,23 +99,24 @@ impl XXH32 {
 
         h32 = h32.wrapping_add(self.total_len as u32);
 
-        let mut memview = &self.memory[..self.memsize];
-        while memview.len() >= 4 {
-            h32 = h32.wrapping_add(LittleEndian::read_u32(memview).wrapping_mul(PRIME32_3));
-            h32 = h32.rotate_left(17).wrapping_mul(PRIME32_4);
-            memview = &memview[4..]
-        }
-
-        for byte in memview {
-            let byte_u32 = *byte as u32;
-            h32 = h32.wrapping_add(byte_u32.wrapping_mul(PRIME32_5));
-            h32 = h32.rotate_left(11).wrapping_mul(PRIME32_1);
+        for chunk in self.memory[..self.memsize].chunks(4) {
+            match chunk.len() {
+                4 => {
+                    h32 = h32.wrapping_add(read_u32_le(chunk).wrapping_mul(PRIME32_3));
+                    h32 = h32.rotate_left(17).wrapping_mul(PRIME32_4);
+                }
+                _ => {
+                    for byte in chunk {
+                        let byte_u32 = *byte as u32;
+                        h32 = h32.wrapping_add(byte_u32.wrapping_mul(PRIME32_5));
+                        h32 = h32.rotate_left(11).wrapping_mul(PRIME32_1);
+                    }
+                }
+            }
         }
 
         h32 = (h32 ^ (h32 >> 15)).wrapping_mul(PRIME32_2);
         h32 = (h32 ^ (h32 >> 13)).wrapping_mul(PRIME32_3);
-        h32 = h32 ^ (h32 >> 16);
-
-        h32
+        return h32 ^ (h32 >> 16);
     }
 }
