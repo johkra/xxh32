@@ -11,12 +11,8 @@ fn main() {
 
     loop {
         match io::stdin().read(&mut buffer) {
-            Ok(len) => {
-                if len == 0 {
-                    break;
-                }
-                xxh32.write(&buffer[..len])
-            }
+            Ok(0) => break,
+            Ok(len) => xxh32.write(&buffer[..len]),
             Err(e) => {
                 println!("Error: {}", e);
                 break;

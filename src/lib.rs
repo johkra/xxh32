@@ -17,9 +17,7 @@ pub struct XXH32 {
 
 fn read_u32_le(bytes: &[u8]) -> u32 {
     assert_eq!(bytes.len(), 4);
-    let b4 = [bytes[0], bytes[1], bytes[2], bytes[3]];
-
-    return unsafe { std::mem::transmute::<[u8; 4], u32>(b4) }.to_le();
+    return unsafe { (*(bytes.as_ptr() as *const u32)).to_le() };
 }
 
 fn calc_next_chunk(val: u32, bytes: &[u8]) -> u32 {
@@ -57,7 +55,7 @@ impl XXH32 {
             return;
         }
 
-        let bytesview = &bytes[(16 - self.memsize) % 16..];
+        let mut bytesview = &bytes[(16 - self.memsize) % 16..];
 
         if self.memsize > 0 {
             self.memory[self.memsize..].clone_from_slice(&bytes[..16 - self.memsize]);
@@ -70,20 +68,17 @@ impl XXH32 {
             self.memsize = 0;
         }
 
-        for chunk in bytesview.chunks(16) {
-            match chunk.len() {
-                16 => {
-                    self.v1 = calc_next_chunk(self.v1, &chunk[0..4]);
-                    self.v2 = calc_next_chunk(self.v2, &chunk[4..8]);
-                    self.v3 = calc_next_chunk(self.v3, &chunk[8..12]);
-                    self.v4 = calc_next_chunk(self.v4, &chunk[12..16]);
-                }
-                _ => {
-                    self.memory[..chunk.len()].clone_from_slice(chunk);
-                    self.memsize += chunk.len();
-                }
-            }
+        while bytesview.len() >= 16 {
+            self.v1 = calc_next_chunk(self.v1, &bytesview[0..4]);
+            self.v2 = calc_next_chunk(self.v2, &bytesview[4..8]);
+            self.v3 = calc_next_chunk(self.v3, &bytesview[8..12]);
+            self.v4 = calc_next_chunk(self.v4, &bytesview[12..16]);
+
+            bytesview = &bytesview[16..];
         }
+
+        self.memory[..bytesview.len()].clone_from_slice(bytesview);
+        self.memsize += bytesview.len();
     }
 
     pub fn finish(&self) -> u32 {
@@ -99,20 +94,19 @@ impl XXH32 {
 
         h32 = h32.wrapping_add(self.total_len as u32);
 
-        for chunk in self.memory[..self.memsize].chunks(4) {
-            match chunk.len() {
-                4 => {
-                    h32 = h32.wrapping_add(read_u32_le(chunk).wrapping_mul(PRIME32_3));
-                    h32 = h32.rotate_left(17).wrapping_mul(PRIME32_4);
-                }
-                _ => {
-                    for byte in chunk {
-                        let byte_u32 = *byte as u32;
-                        h32 = h32.wrapping_add(byte_u32.wrapping_mul(PRIME32_5));
-                        h32 = h32.rotate_left(11).wrapping_mul(PRIME32_1);
-                    }
-                }
-            }
+        let mut memoryview = &self.memory[..self.memsize];
+
+        while memoryview.len() >= 4 {
+            h32 = h32.wrapping_add(read_u32_le(&memoryview[0..4]).wrapping_mul(PRIME32_3));
+            h32 = h32.rotate_left(17).wrapping_mul(PRIME32_4);
+
+            memoryview = &memoryview[4..];
+        }
+
+        for byte in memoryview {
+            let byte_u32 = *byte as u32;
+            h32 = h32.wrapping_add(byte_u32.wrapping_mul(PRIME32_5));
+            h32 = h32.rotate_left(11).wrapping_mul(PRIME32_1);
         }
 
         h32 = (h32 ^ (h32 >> 15)).wrapping_mul(PRIME32_2);

@@ -1,7 +1,10 @@
 [package]
 name = "xxh32"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Johannes Krampf <johannes.krampf@googlemail.com>"]
 license = "MPL-2.0"
 description = "Rust implementation of the xxh32 hash used in the LZ4 compression format."
 repository = "https://github.com/johkra/xxh32"
+
+[dependencies]
+time = "0.1"
