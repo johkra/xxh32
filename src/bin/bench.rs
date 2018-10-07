@@ -32,7 +32,9 @@ fn main() {
     }
     println!("");
 
-    let min_time = times.iter().fold(std::u64::MAX, |acc, &x| std::cmp::min(acc, x));
+    let min_time = times
+        .iter()
+        .fold(std::u64::MAX, |acc, &x| std::cmp::min(acc, x));
     let max_throughput = 1000 * BUFSIZE as u64 / min_time;
 
     println!("Maximum throughput: {} MB/s", max_throughput);

@@ -4,7 +4,6 @@ extern crate xxh32;
 mod tests {
     use xxh32::XXH32;
 
-
     #[test]
     fn empty_hash() {
         let mut xxh32 = XXH32::new();
@@ -15,19 +14,24 @@ mod tests {
     #[test]
     fn to_16_hashes() {
         let content = b"0123456789abcdef";
-        let hashes: [u32; 16] = [0x48454cb2, 0x034d0471, 0x48009497, 0x0a0b4c93, 0x8aa3b71c,
-                                 0x994e4577, 0x1907ad24, 0x189bbfbf, 0x0493d634, 0x950c9c0a,
-                                 0xd6509106, 0xba508d84, 0x6ba381b4, 0xf45aca85, 0x1dbdfa0f,
-                                 0xc2c45b69];
+        let hashes: [u32; 16] = [
+            0x48454cb2, 0x034d0471, 0x48009497, 0x0a0b4c93, 0x8aa3b71c, 0x994e4577, 0x1907ad24,
+            0x189bbfbf, 0x0493d634, 0x950c9c0a, 0xd6509106, 0xba508d84, 0x6ba381b4, 0xf45aca85,
+            0x1dbdfa0f, 0xc2c45b69,
+        ];
 
         for i in 0..16 {
             let mut xxh32 = XXH32::new();
             xxh32.write(&content[0..i + 1]);
-            assert!(xxh32.finish() == hashes[i],
-                    format!("{} failed: {:08x} != {:08x}",
-                            i + 1,
-                            xxh32.finish(),
-                            hashes[i]));
+            assert!(
+                xxh32.finish() == hashes[i],
+                format!(
+                    "{} failed: {:08x} != {:08x}",
+                    i + 1,
+                    xxh32.finish(),
+                    hashes[i]
+                )
+            );
         }
     }
 

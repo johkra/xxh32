@@ -23,10 +23,11 @@ fn read_u32_le(bytes: &[u8]) -> u32 {
 fn calc_next_chunk(val: u32, bytes: &[u8]) -> u32 {
     let b_u32 = read_u32_le(bytes);
 
-    return b_u32.wrapping_mul(PRIME32_2)
-                .wrapping_add(val)
-                .rotate_left(13)
-                .wrapping_mul(PRIME32_1);
+    return b_u32
+        .wrapping_mul(PRIME32_2)
+        .wrapping_add(val)
+        .rotate_left(13)
+        .wrapping_mul(PRIME32_1);
 }
 
 impl XXH32 {
@@ -85,11 +86,12 @@ impl XXH32 {
         let mut h32 = self.seed.wrapping_add(PRIME32_5);
 
         if self.total_len >= 16 {
-            h32 = self.v1
-                      .rotate_left(1)
-                      .wrapping_add(self.v2.rotate_left(7))
-                      .wrapping_add(self.v3.rotate_left(12))
-                      .wrapping_add(self.v4.rotate_left(18));
+            h32 = self
+                .v1
+                .rotate_left(1)
+                .wrapping_add(self.v2.rotate_left(7))
+                .wrapping_add(self.v3.rotate_left(12))
+                .wrapping_add(self.v4.rotate_left(18));
         }
 
         h32 = h32.wrapping_add(self.total_len as u32);
