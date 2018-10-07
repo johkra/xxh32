@@ -17,7 +17,10 @@ pub struct XXH32 {
 
 fn read_u32_le(bytes: &[u8]) -> u32 {
     assert_eq!(bytes.len(), 4);
-    return unsafe { (*(bytes.as_ptr() as *const u32)).to_le() };
+    return bytes[0] as u32
+        | (bytes[1] as u32) << 8
+        | (bytes[2] as u32) << 16
+        | (bytes[3] as u32) << 24;
 }
 
 fn calc_next_chunk(val: u32, bytes: &[u8]) -> u32 {
