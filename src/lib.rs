@@ -1,3 +1,5 @@
+#![no_std]
+
 const PRIME32_1: u32 = 2_654_435_761;
 const PRIME32_2: u32 = 2_246_822_519;
 const PRIME32_3: u32 = 3_266_489_917;
