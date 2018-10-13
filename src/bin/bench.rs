@@ -9,28 +9,28 @@ const TRIES: usize = 3;
 const NS_IN_SEC: f64 = 1000.0 * 1000.0 * 1000.0;
 
 fn calculate_hash(buf: &[u8]) -> u32 {
-    let mut xxh32 = XXH32::new();
+    let mut xxh32 = XXH32::default();
     xxh32.write(buf);
-    return xxh32.finish();
+    xxh32.finish()
 }
 
 fn main() {
-    let mut buf = vec![0; BUFSIZE];
+    let mut buf = vec![0u8; BUFSIZE];
 
-    for x in 0..BUFSIZE {
-        buf[x] = x as u8;
+    for (i, el) in buf.iter_mut().enumerate() {
+        *el = i as u8;
     }
 
     let mut times: [u64; TRIES] = [0; TRIES];
 
     print!("Hashing {}MB in ", BUFSIZE / 1024 / 1024);
-    for try in 0..TRIES {
+    for try in times.iter_mut() {
         let start = time::precise_time_ns();
         calculate_hash(&buf);
-        times[try] = time::precise_time_ns() - start;
-        print!("{:.*}s ", 3, times[try] as f64 / NS_IN_SEC);
+        *try = time::precise_time_ns() - start;
+        print!("{:.*}s ", 3, *try as f64 / NS_IN_SEC);
     }
-    println!("");
+    println!();
 
     let min_time = times
         .iter()

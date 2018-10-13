@@ -6,7 +6,7 @@ use std::io;
 use std::io::Read;
 
 fn main() {
-    let mut xxh32 = XXH32::new();
+    let mut xxh32 = XXH32::default();
     let mut buffer = [0 as u8; 4096];
 
     loop {

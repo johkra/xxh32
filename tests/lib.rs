@@ -6,7 +6,7 @@ mod tests {
 
     #[test]
     fn empty_hash() {
-        let mut xxh32 = XXH32::new();
+        let mut xxh32 = XXH32::default();
         xxh32.write(b"");
         assert_eq!(xxh32.finish(), 0x02cc5d05)
     }
@@ -21,7 +21,7 @@ mod tests {
         ];
 
         for i in 0..16 {
-            let mut xxh32 = XXH32::new();
+            let mut xxh32 = XXH32::default();
             xxh32.write(&content[0..i + 1]);
             assert!(
                 xxh32.finish() == hashes[i],
@@ -37,7 +37,7 @@ mod tests {
 
     #[test]
     fn small_updates() {
-        let mut xxh32 = XXH32::new();
+        let mut xxh32 = XXH32::default();
         xxh32.write(b"0");
         xxh32.write(b"1");
         assert_eq!(xxh32.finish(), 0x034d0471);
@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn multi_updates() {
-        let mut xxh32 = XXH32::new();
+        let mut xxh32 = XXH32::default();
         xxh32.write(b"0123456789abc");
         xxh32.write(b"0123456789abc");
         assert_eq!(xxh32.finish(), 0x2cf3b22b);
@@ -56,7 +56,7 @@ mod tests {
         let mpl = b"This Source Code Form is subject to the terms of the Mozilla \
 Public License, v. 2.0. If a copy of the MPL was not distributed \
 with this file, You can obtain one at https://mozilla.org/MPL/2.0/.\n";
-        let mut xxh32 = XXH32::new();
+        let mut xxh32 = XXH32::default();
         xxh32.write(mpl);
         assert_eq!(xxh32.finish(), 0xe52c5e91);
     }
