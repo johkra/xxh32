@@ -6,6 +6,7 @@ const PRIME32_3: u32 = 3_266_489_917;
 const PRIME32_4: u32 = 668_265_263;
 const PRIME32_5: u32 = 374_761_393;
 
+#[derive(Debug)]
 pub struct XXH32 {
     seed: u32,
     total_len: usize,
