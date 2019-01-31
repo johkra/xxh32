@@ -17,16 +17,8 @@ pub struct XXH32 {
     memsize: usize,
 }
 
-fn read_u32_le(bytes: &[u8]) -> u32 {
-    assert_eq!(bytes.len(), 4);
-    u32::from(bytes[0])
-        | u32::from(bytes[1]) << 8
-        | u32::from(bytes[2]) << 16
-        | u32::from(bytes[3]) << 24
-}
-
 fn calc_next_chunk(val: u32, bytes: &[u8]) -> u32 {
-    read_u32_le(bytes)
+    u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
         .wrapping_mul(PRIME32_2)
         .wrapping_add(val)
         .rotate_left(13)
@@ -103,7 +95,10 @@ impl XXH32 {
         let mut memoryview = &self.memory[..self.memsize];
 
         while memoryview.len() >= 4 {
-            h32 = h32.wrapping_add(read_u32_le(&memoryview[0..4]).wrapping_mul(PRIME32_3));
+            h32 = h32.wrapping_add(
+                u32::from_le_bytes([memoryview[0], memoryview[1], memoryview[2], memoryview[3]])
+                    .wrapping_mul(PRIME32_3),
+            );
             h32 = h32.rotate_left(17).wrapping_mul(PRIME32_4);
 
             memoryview = &memoryview[4..];
