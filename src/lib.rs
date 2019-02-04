@@ -48,15 +48,15 @@ impl XXH32 {
         self.total_len += bytes.len();
 
         if self.memsize + bytes.len() < 16 {
-            self.memory[self.memsize..self.memsize + bytes.len()].clone_from_slice(bytes);
+            self.memory[self.memsize..self.memsize + bytes.len()].copy_from_slice(bytes);
             self.memsize += bytes.len();
             return;
         }
 
-        let mut bytesview = &bytes[(16 - self.memsize) % 16..];
+        let bytesview = &bytes[(16 - self.memsize) % 16..];
 
         if self.memsize > 0 {
-            self.memory[self.memsize..].clone_from_slice(&bytes[..16 - self.memsize]);
+            self.memory[self.memsize..].copy_from_slice(&bytes[..16 - self.memsize]);
 
             self.v1 = calc_next_chunk(self.v1, &self.memory[0..4]);
             self.v2 = calc_next_chunk(self.v2, &self.memory[4..8]);
@@ -66,16 +66,17 @@ impl XXH32 {
             self.memsize = 0;
         }
 
-        while bytesview.len() >= 16 {
-            self.v1 = calc_next_chunk(self.v1, &bytesview[0..4]);
-            self.v2 = calc_next_chunk(self.v2, &bytesview[4..8]);
-            self.v3 = calc_next_chunk(self.v3, &bytesview[8..12]);
-            self.v4 = calc_next_chunk(self.v4, &bytesview[12..16]);
-
-            bytesview = &bytesview[16..];
+        let mut iter = bytesview.chunks_exact(16);
+        for chunk in iter.by_ref() {
+            self.v1 = calc_next_chunk(self.v1, &chunk[0..4]);
+            self.v2 = calc_next_chunk(self.v2, &chunk[4..8]);
+            self.v3 = calc_next_chunk(self.v3, &chunk[8..12]);
+            self.v4 = calc_next_chunk(self.v4, &chunk[12..16]);
         }
 
-        self.memory[..bytesview.len()].clone_from_slice(bytesview);
+        let bytesview = iter.remainder();
+
+        self.memory[..bytesview.len()].copy_from_slice(bytesview);
         self.memsize += bytesview.len();
     }
 
@@ -92,21 +93,17 @@ impl XXH32 {
 
         h32 = h32.wrapping_add(self.total_len as u32);
 
-        let mut memoryview = &self.memory[..self.memsize];
-
-        while memoryview.len() >= 4 {
+        let mut iter = self.memory[..self.memsize].chunks_exact(4);
+        for chunk in iter.by_ref() {
             h32 = h32.wrapping_add(
-                u32::from_le_bytes([memoryview[0], memoryview[1], memoryview[2], memoryview[3]])
+                u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
                     .wrapping_mul(PRIME32_3),
             );
             h32 = h32.rotate_left(17).wrapping_mul(PRIME32_4);
-
-            memoryview = &memoryview[4..];
         }
 
-        for byte in memoryview {
-            let byte_u32 = u32::from(*byte);
-            h32 = h32.wrapping_add(byte_u32.wrapping_mul(PRIME32_5));
+        for byte in iter.remainder() {
+            h32 = h32.wrapping_add(u32::from(*byte).wrapping_mul(PRIME32_5));
             h32 = h32.rotate_left(11).wrapping_mul(PRIME32_1);
         }
 
