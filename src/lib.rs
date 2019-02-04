@@ -44,6 +44,18 @@ impl XXH32 {
             memsize: 0,
         }
     }
+    fn calc_chunk(&mut self, bytes: &[u8]) {
+        self.v1 = calc_next_chunk(self.v1, &bytes[0..4]);
+        self.v2 = calc_next_chunk(self.v2, &bytes[4..8]);
+        self.v3 = calc_next_chunk(self.v3, &bytes[8..12]);
+        self.v4 = calc_next_chunk(self.v4, &bytes[12..16]);
+    }
+    fn calc_chunk_memory(&mut self) {
+        self.v1 = calc_next_chunk(self.v1, &self.memory[0..4]);
+        self.v2 = calc_next_chunk(self.v2, &self.memory[4..8]);
+        self.v3 = calc_next_chunk(self.v3, &self.memory[8..12]);
+        self.v4 = calc_next_chunk(self.v4, &self.memory[12..16]);
+    }
     pub fn write(&mut self, bytes: &[u8]) {
         self.total_len += bytes.len();
 
@@ -57,21 +69,13 @@ impl XXH32 {
 
         if self.memsize > 0 {
             self.memory[self.memsize..].copy_from_slice(&bytes[..16 - self.memsize]);
-
-            self.v1 = calc_next_chunk(self.v1, &self.memory[0..4]);
-            self.v2 = calc_next_chunk(self.v2, &self.memory[4..8]);
-            self.v3 = calc_next_chunk(self.v3, &self.memory[8..12]);
-            self.v4 = calc_next_chunk(self.v4, &self.memory[12..16]);
-
+            self.calc_chunk_memory();
             self.memsize = 0;
         }
 
         let mut iter = bytesview.chunks_exact(16);
         for chunk in iter.by_ref() {
-            self.v1 = calc_next_chunk(self.v1, &chunk[0..4]);
-            self.v2 = calc_next_chunk(self.v2, &chunk[4..8]);
-            self.v3 = calc_next_chunk(self.v3, &chunk[8..12]);
-            self.v4 = calc_next_chunk(self.v4, &chunk[12..16]);
+            self.calc_chunk(&chunk);
         }
 
         let bytesview = iter.remainder();
