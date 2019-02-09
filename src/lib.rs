@@ -15,7 +15,7 @@ pub struct XXH32 {
     v3: u32,
     v4: u32,
     memory: [u8; 16],
-    memsize: usize,
+    mem_used: usize,
 }
 
 fn calc_next_chunk(val: u32, bytes: &[u8]) -> u32 {
@@ -42,47 +42,58 @@ impl XXH32 {
             v3: seed,
             v4: seed.wrapping_sub(PRIME32_1),
             memory: [0; 16],
-            memsize: 0,
+            mem_used: 0,
         }
     }
+
+    // As of Rust 1.32.0, inlining this code will cause 10-20% lower throughput.  Keeping these
+    // lines in a separate method results in performance parity with the C implementation.
     fn calc_chunk(&mut self, bytes: &[u8]) {
-        self.v1 = calc_next_chunk(self.v1, &bytes[0..4]);
-        self.v2 = calc_next_chunk(self.v2, &bytes[4..8]);
-        self.v3 = calc_next_chunk(self.v3, &bytes[8..12]);
-        self.v4 = calc_next_chunk(self.v4, &bytes[12..16]);
+        let mut chunks = bytes.chunks_exact(4);
+        self.v1 = calc_next_chunk(self.v1, chunks.next().unwrap());
+        self.v2 = calc_next_chunk(self.v2, chunks.next().unwrap());
+        self.v3 = calc_next_chunk(self.v3, chunks.next().unwrap());
+        self.v4 = calc_next_chunk(self.v4, chunks.next().unwrap());
     }
-    fn calc_chunk_memory(&mut self) {
-        self.v1 = calc_next_chunk(self.v1, &self.memory[0..4]);
-        self.v2 = calc_next_chunk(self.v2, &self.memory[4..8]);
-        self.v3 = calc_next_chunk(self.v3, &self.memory[8..12]);
-        self.v4 = calc_next_chunk(self.v4, &self.memory[12..16]);
+    fn calc_chunk_mem(&mut self) {
+        let mut chunks = self.memory.chunks_exact(4);
+        self.v1 = calc_next_chunk(self.v1, chunks.next().unwrap());
+        self.v2 = calc_next_chunk(self.v2, chunks.next().unwrap());
+        self.v3 = calc_next_chunk(self.v3, chunks.next().unwrap());
+        self.v4 = calc_next_chunk(self.v4, chunks.next().unwrap());
     }
     pub fn write(&mut self, bytes: &[u8]) {
         self.total_len += bytes.len();
 
-        if self.memsize + bytes.len() < 16 {
-            self.memory[self.memsize..self.memsize + bytes.len()].copy_from_slice(bytes);
-            self.memsize += bytes.len();
-            return;
-        }
+        let mut main = bytes;
+        if self.mem_used > 0 {
+            if self.mem_used + bytes.len() < 16 {
+                self.memory[self.mem_used..self.mem_used + bytes.len()].copy_from_slice(bytes);
+                self.mem_used += bytes.len();
+                return;
+            }
 
-        let bytesview = &bytes[(16 - self.memsize) % 16..];
+            let (fill, remaining) = bytes.split_at(16 - self.mem_used);
+            self.memory[self.mem_used..].copy_from_slice(fill);
+            self.calc_chunk_mem();
+            self.mem_used = 0;
 
-        if self.memsize > 0 {
-            self.memory[self.memsize..].copy_from_slice(&bytes[..16 - self.memsize]);
-            self.calc_chunk_memory();
-            self.memsize = 0;
-        }
+            if remaining.is_empty() {
+                return;
+            }
+            main = remaining;
+        };
 
-        let mut iter = bytesview.chunks_exact(16);
+        let mut iter = main.chunks_exact(16);
         for chunk in iter.by_ref() {
             self.calc_chunk(&chunk);
         }
 
-        let bytesview = iter.remainder();
-
-        self.memory[..bytesview.len()].copy_from_slice(bytesview);
-        self.memsize += bytesview.len();
+        if iter.remainder().is_empty() {
+            return;
+        }
+        self.memory[..iter.remainder().len()].copy_from_slice(iter.remainder());
+        self.mem_used += iter.remainder().len()
     }
 
     pub fn finish(&self) -> u32 {
@@ -98,7 +109,7 @@ impl XXH32 {
 
         h32 = h32.wrapping_add(self.total_len as u32);
 
-        let mut iter = self.memory[..self.memsize].chunks_exact(4);
+        let mut iter = self.memory[..self.mem_used].chunks_exact(4);
         for chunk in iter.by_ref() {
             h32 = h32.wrapping_add(
                 u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
