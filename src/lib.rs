@@ -1,29 +1,21 @@
 #![no_std]
+use core::num::Wrapping;
 
-const PRIME32_1: u32 = 2_654_435_761;
-const PRIME32_2: u32 = 2_246_822_519;
-const PRIME32_3: u32 = 3_266_489_917;
-const PRIME32_4: u32 = 668_265_263;
-const PRIME32_5: u32 = 374_761_393;
+const PRIME32_1: Wrapping<u32> = Wrapping(2_654_435_761);
+const PRIME32_2: Wrapping<u32> = Wrapping(2_246_822_519);
+const PRIME32_3: Wrapping<u32> = Wrapping(3_266_489_917);
+const PRIME32_4: Wrapping<u32> = Wrapping(668_265_263);
+const PRIME32_5: Wrapping<u32> = Wrapping(374_761_393);
 
 #[derive(Debug)]
 pub struct XXH32 {
-    seed: u32,
     total_len: usize,
-    v1: u32,
-    v2: u32,
-    v3: u32,
-    v4: u32,
+    v1: Wrapping<u32>,
+    v2: Wrapping<u32>,
+    v3: Wrapping<u32>,
+    v4: Wrapping<u32>,
     memory: [u8; 16],
     mem_used: usize,
-}
-
-fn calc_next_chunk(val: u32, bytes: &[u8]) -> u32 {
-    u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
-        .wrapping_mul(PRIME32_2)
-        .wrapping_add(val)
-        .rotate_left(13)
-        .wrapping_mul(PRIME32_1)
 }
 
 impl Default for XXH32 {
@@ -32,35 +24,26 @@ impl Default for XXH32 {
     }
 }
 
+fn wu32_from_le_bytes(bytes: &[u8]) -> Wrapping<u32> {
+    Wrapping(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+}
+
+const fn wu32_rotate_left(wu32: Wrapping<u32>, n: u32) -> Wrapping<u32> {
+    Wrapping(wu32.0.rotate_left(n))
+}
+
 impl XXH32 {
     pub fn new_with_seed(seed: u32) -> XXH32 {
+        let seed = Wrapping(seed);
         XXH32 {
-            seed,
             total_len: 0,
-            v1: seed.wrapping_add(PRIME32_1).wrapping_add(PRIME32_2),
-            v2: seed.wrapping_add(PRIME32_2),
+            v1: seed + PRIME32_1 + PRIME32_2,
+            v2: seed + PRIME32_2,
             v3: seed,
-            v4: seed.wrapping_sub(PRIME32_1),
+            v4: seed - PRIME32_1,
             memory: [0; 16],
             mem_used: 0,
         }
-    }
-
-    // As of Rust 1.32.0, inlining this code will cause 10-20% lower throughput.  Keeping these
-    // lines in a separate method results in performance parity with the C implementation.
-    fn calc_chunk(&mut self, bytes: &[u8]) {
-        let mut chunks = bytes.chunks_exact(4);
-        self.v1 = calc_next_chunk(self.v1, chunks.next().unwrap());
-        self.v2 = calc_next_chunk(self.v2, chunks.next().unwrap());
-        self.v3 = calc_next_chunk(self.v3, chunks.next().unwrap());
-        self.v4 = calc_next_chunk(self.v4, chunks.next().unwrap());
-    }
-    fn calc_chunk_mem(&mut self) {
-        let mut chunks = self.memory.chunks_exact(4);
-        self.v1 = calc_next_chunk(self.v1, chunks.next().unwrap());
-        self.v2 = calc_next_chunk(self.v2, chunks.next().unwrap());
-        self.v3 = calc_next_chunk(self.v3, chunks.next().unwrap());
-        self.v4 = calc_next_chunk(self.v4, chunks.next().unwrap());
     }
     pub fn write(&mut self, bytes: &[u8]) {
         self.total_len += bytes.len();
@@ -75,7 +58,16 @@ impl XXH32 {
 
             let (fill, remaining) = bytes.split_at(16 - self.mem_used);
             self.memory[self.mem_used..].copy_from_slice(fill);
-            self.calc_chunk_mem();
+
+            let mut vars = [&mut self.v1, &mut self.v2, &mut self.v3, &mut self.v4];
+            let vars_iter = vars.iter_mut();
+            let chunks = self.memory.chunks_exact(4).map(wu32_from_le_bytes);
+            assert!(chunks.len() == vars_iter.len());
+            for (var, val) in vars_iter.zip(chunks) {
+                **var += val * PRIME32_2;
+                **var = wu32_rotate_left(**var, 13) * PRIME32_1;
+            }
+
             self.mem_used = 0;
 
             if remaining.is_empty() {
@@ -86,7 +78,14 @@ impl XXH32 {
 
         let mut iter = main.chunks_exact(16);
         for chunk in iter.by_ref() {
-            self.calc_chunk(&chunk);
+            let mut vars = [&mut self.v1, &mut self.v2, &mut self.v3, &mut self.v4];
+            let vars_iter = vars.iter_mut();
+            let chunks = chunk.chunks_exact(4).map(wu32_from_le_bytes);
+            assert!(chunks.len() == vars_iter.len());
+            for (var, val) in vars_iter.zip(chunks) {
+                **var += val * PRIME32_2;
+                **var = wu32_rotate_left(**var, 13) * PRIME32_1;
+            }
         }
 
         if iter.remainder().is_empty() {
@@ -98,33 +97,33 @@ impl XXH32 {
 
     pub fn finish(&self) -> u32 {
         let mut h32 = if self.total_len >= 16 {
-            self.v1
-                .rotate_left(1)
-                .wrapping_add(self.v2.rotate_left(7))
-                .wrapping_add(self.v3.rotate_left(12))
-                .wrapping_add(self.v4.rotate_left(18))
+            wu32_rotate_left(self.v1, 1)
+                + wu32_rotate_left(self.v2, 7)
+                + wu32_rotate_left(self.v3, 12)
+                + wu32_rotate_left(self.v4, 18)
         } else {
-            self.seed.wrapping_add(PRIME32_5)
+            // self.v3 == seed
+            self.v3 + PRIME32_5
         };
 
-        h32 = h32.wrapping_add(self.total_len as u32);
+        h32 += Wrapping(self.total_len as u32);
 
         let mut iter = self.memory[..self.mem_used].chunks_exact(4);
         for chunk in iter.by_ref() {
-            h32 = h32.wrapping_add(
-                u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
-                    .wrapping_mul(PRIME32_3),
-            );
-            h32 = h32.rotate_left(17).wrapping_mul(PRIME32_4);
+            h32 += wu32_from_le_bytes(chunk) * PRIME32_3;
+            h32 = wu32_rotate_left(h32, 17) * PRIME32_4;
         }
 
         for byte in iter.remainder() {
-            h32 = h32.wrapping_add(u32::from(*byte).wrapping_mul(PRIME32_5));
-            h32 = h32.rotate_left(11).wrapping_mul(PRIME32_1);
+            h32 += Wrapping(u32::from(*byte)) * PRIME32_5;
+            h32 = wu32_rotate_left(h32, 11) * (PRIME32_1);
         }
 
-        h32 = (h32 ^ (h32 >> 15)).wrapping_mul(PRIME32_2);
-        h32 = (h32 ^ (h32 >> 13)).wrapping_mul(PRIME32_3);
-        h32 ^ (h32 >> 16)
+        h32 ^= h32 >> 15;
+        h32 *= PRIME32_2;
+        h32 ^= h32 >> 13;
+        h32 *= PRIME32_3;
+        h32 ^= h32 >> 16;
+        h32.0
     }
 }
